@@ -1,12 +1,24 @@
+from pathlib import Path
+
 import numpy as np
-from jaxrl_m.typing import Data
 from flax.core.frozen_dict import FrozenDict
 from jax import tree_util
+
+from jaxrl_m.typing import Data
 
 
 def get_size(data: Data) -> int:
     sizes = tree_util.tree_map(lambda arr: len(arr), data)
     return max(tree_util.tree_leaves(sizes))
+
+
+def stack_dicts(dict1: Data, dict2: Data) -> Data:
+    """Stacks two dicts."""
+
+    assert isinstance(dict1, dict)
+    assert isinstance(dict2, dict)
+
+    return {k: np.stack([v, dict2[k]], axis=0) for k, v in dict1.items()}
 
 
 class Dataset(FrozenDict):
@@ -32,6 +44,58 @@ class Dataset(FrozenDict):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.size = get_size(self._dict)
+
+    @classmethod
+    def from_data_dir(cls, data_dir: str):
+        """Creates a dataset from logs. Specific to Dreamer generated data for now."""
+
+        data_dict = None
+
+        data_dir = Path(data_dir)
+        for data_chunk in data_dir.glob("*.npz"):
+            data = np.load(data_chunk)
+
+            # replace some keys with others -- vector with observation, etc.
+            data["observations"] = data["vector"]
+            del data["vector"]
+
+            data["actions"] = data["action"]
+            del data["action"]
+
+            data["rewards"] = data["reward"]
+            del data["reward"]
+
+            data["masks"] = 1.0 - data["is_terminal"]
+
+            if data_dict is None:
+                data_dict = data
+            else:
+                data_dict = stack_dicts(data_dict, data)
+
+        # postprocessing -- create next observations
+        data_dict["next_observations"] = data_dict["observations"][1:]
+        data_dict["observations"] = data_dict["observations"][:-1]
+
+        for k, v in data_dict.items():
+            data_dict[k] = v[:-1]
+
+        data_dict["next_observations"] = np.where(
+            data_dict["is_terminal"],
+            data_dict["observations"],
+            data_dict["next_observations"],
+        )
+
+        for k in data_dict.keys():
+            if k not in [
+                "observations",
+                "actions",
+                "rewards",
+                "masks",
+                "next_observations",
+            ]:
+                del data_dict[k]
+
+        return cls(data_dict)
 
     def sample(self, batch_size: int, indx=None):
         """

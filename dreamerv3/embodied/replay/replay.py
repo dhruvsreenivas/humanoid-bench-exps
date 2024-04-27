@@ -8,8 +8,7 @@ import embodied
 import numpy as np
 
 from . import chunk as chunklib
-from . import limiters
-from . import selectors
+from . import limiters, selectors
 
 
 class Replay:

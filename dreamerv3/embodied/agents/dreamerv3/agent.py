@@ -23,10 +23,7 @@ class CheckTypesFilter(logging.Filter):
 
 logger.addFilter(CheckTypesFilter())
 
-from . import behaviors
-from . import jaxagent
-from . import jaxutils
-from . import nets
+from . import behaviors, jaxagent, jaxutils, nets
 from . import ninjax as nj
 
 # from . import ssm

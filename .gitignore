@@ -4,6 +4,7 @@
 __pycache__/
 *.py[cod]
 dist
+logs/
 
 # macOS
 .DS_Store
